@@ -1,171 +1,89 @@
-/**
- * 간단한 SPA 라우터
- */
-import { createObserver } from "./createObserver.js";
-
 export class Router {
-  #routes;
-  #route;
-  #observer = createObserver();
-  #baseUrl;
-
-  constructor(baseUrl = "") {
-    this.#routes = new Map();
-    this.#route = null;
-    this.#baseUrl = baseUrl.replace(/\/$/, "");
-
-    window.addEventListener("popstate", () => {
-      this.#route = this.#findRoute();
-      this.#observer.notify();
-    });
+  constructor() {
+    this.routes = [];
+    
+    // [수정 포인트 1] 서버(Node.js)에서는 window가 없으므로 체크해야 함!
+    // 브라우저일 때만 뒤로가기(popstate) 이벤트를 감지
+    if (typeof window !== "undefined") {
+      window.onpopstate = () => this.checkRoutes();
+    }
   }
 
-  get baseUrl() {
-    return this.#baseUrl;
-  }
-
-  get query() {
-    return Router.parseQuery(window.location.search);
-  }
-
-  set query(newQuery) {
-    const newUrl = Router.getUrl(newQuery, this.#baseUrl);
-    this.push(newUrl);
-  }
-
-  get params() {
-    return this.#route?.params ?? {};
-  }
-
-  get route() {
-    return this.#route;
-  }
-
-  get target() {
-    return this.#route?.handler;
-  }
-
-  subscribe(fn) {
-    this.#observer.subscribe(fn);
+  addRoute(pattern, component) {
+    this.routes.push({ pattern, component });
+    return this;
   }
 
   /**
-   * 라우트 등록
-   * @param {string} path - 경로 패턴 (예: "/product/:id")
-   * @param {Function} handler - 라우트 핸들러
+   * [SSR & CSR 공용] URL과 일치하는 라우트 찾기
    */
-  addRoute(path, handler) {
-    // 경로 패턴을 정규식으로 변환
-    const paramNames = [];
-    const regexPath = path
-      .replace(/:\w+/g, (match) => {
-        paramNames.push(match.slice(1)); // ':id' -> 'id'
-        return "([^/]+)";
-      })
-      .replace(/\//g, "\\/");
+  match(path) {
+    for (const route of this.routes) {
+      // 정규표현식 패턴 처리
+      const regex = new RegExp(`^${route.pattern.replace(/:\w+/g, "([^/]+)")}$`);
+      const match = path.match(regex);
 
-    const regex = new RegExp(`^${this.#baseUrl}${regexPath}$`);
-
-    this.#routes.set(path, {
-      regex,
-      paramNames,
-      handler,
-    });
-  }
-
-  #findRoute(url = window.location.pathname) {
-    const { pathname } = new URL(url, window.location.origin);
-    for (const [routePath, route] of this.#routes) {
-      const match = pathname.match(route.regex);
       if (match) {
-        // 매치된 파라미터들을 객체로 변환
-        const params = {};
-        route.paramNames.forEach((name, index) => {
-          params[name] = match[index + 1];
-        });
-
-        return {
-          ...route,
-          params,
-          path: routePath,
-        };
+        // URL 파라미터 추출 (예: /product/123 -> { id: "123" })
+        const params = this._getParams(route.pattern, match);
+        return { component: route.component, params };
       }
     }
     return null;
   }
 
-  /**
-   * 네비게이션 실행
-   * @param {string} url - 이동할 경로
-   */
-  push(url) {
-    try {
-      // baseUrl이 없으면 자동으로 붙여줌
-      let fullUrl = url.startsWith(this.#baseUrl) ? url : this.#baseUrl + (url.startsWith("/") ? url : "/" + url);
-
-      const prevFullUrl = `${window.location.pathname}${window.location.search}`;
-
-      // 히스토리 업데이트
-      if (prevFullUrl !== fullUrl) {
-        window.history.pushState(null, "", fullUrl);
-      }
-
-      this.#route = this.#findRoute(fullUrl);
-      this.#observer.notify();
-    } catch (error) {
-      console.error("라우터 네비게이션 오류:", error);
+  _getParams(pattern, match) {
+    const params = {};
+    const keys = pattern.match(/:\w+/g);
+    if (keys) {
+      keys.forEach((key, index) => {
+        params[key.substring(1)] = match[index + 1];
+      });
     }
+    return params;
   }
 
   /**
-   * 라우터 시작
+   * [CSR 전용] 라우팅 실행
    */
+  checkRoutes() {
+    // [수정 포인트 2] 서버에서는 실행 안 함
+    if (typeof window === "undefined") return;
+
+    const currentPath = window.location.pathname;
+    const match = this.match(currentPath);
+
+    if (match) {
+      // 컴포넌트 렌더링은 main.js의 렌더러가 담당하거나, 
+      // 여기서 이벤트를 발생시켜야 함. 
+      // 기존 로직에 맞춰서 유지 (보통 여기서 render 함수를 부르지 않고 상태만 변경)
+      this.query = this._parseQuery(); // 쿼리 파싱
+      this.params = match.params;
+    }
+  }
+
+  _parseQuery() {
+    if (typeof window === "undefined") return {};
+    const search = new URLSearchParams(window.location.search);
+    return Object.fromEntries(search.entries());
+  }
+
   start() {
-    this.#route = this.#findRoute();
-    this.#observer.notify();
+    // [수정 포인트 3] 서버 무시
+    if (typeof window !== "undefined") {
+      this.checkRoutes();
+    }
   }
 
-  /**
-   * 쿼리 파라미터를 객체로 파싱
-   * @param {string} search - location.search 또는 쿼리 문자열
-   * @returns {Object} 파싱된 쿼리 객체
-   */
-  static parseQuery = (search = window.location.search) => {
-    const params = new URLSearchParams(search);
-    const query = {};
-    for (const [key, value] of params) {
-      query[key] = value;
+  push(path) {
+    // [수정 포인트 4] 서버 무시
+    if (typeof window !== "undefined") {
+      window.history.pushState(null, "", path);
+      this.checkRoutes();
     }
-    return query;
-  };
-
-  /**
-   * 객체를 쿼리 문자열로 변환
-   * @param {Object} query - 쿼리 객체
-   * @returns {string} 쿼리 문자열
-   */
-  static stringifyQuery = (query) => {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-      if (value !== null && value !== undefined && value !== "") {
-        params.set(key, String(value));
-      }
-    }
-    return params.toString();
-  };
-
-  static getUrl = (newQuery, baseUrl = "") => {
-    const currentQuery = Router.parseQuery();
-    const updatedQuery = { ...currentQuery, ...newQuery };
-
-    // 빈 값들 제거
-    Object.keys(updatedQuery).forEach((key) => {
-      if (updatedQuery[key] === null || updatedQuery[key] === undefined || updatedQuery[key] === "") {
-        delete updatedQuery[key];
-      }
-    });
-
-    const queryString = Router.stringifyQuery(updatedQuery);
-    return `${baseUrl}${window.location.pathname.replace(baseUrl, "")}${queryString ? `?${queryString}` : ""}`;
-  };
+  }
 }
+
+// [중요] 기존 코드와 호환성을 위해 싱글톤 인스턴스도 내보냅니다.
+// 서버는 new Router()를 따로 해서 쓰고, 클라이언트는 이 router를 씁니다.
+export const router = new Router();

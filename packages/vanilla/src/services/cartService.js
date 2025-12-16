@@ -1,5 +1,5 @@
-import { CART_ACTIONS, cartStore, UI_ACTIONS, uiStore } from "../stores";
-import { cartStorage } from "../storage";
+import { CART_ACTIONS, cartStore, UI_ACTIONS, uiStore } from "../stores/index.js";
+import { cartStorage } from "../storage/index.js";
 
 /**
  * 로컬스토리지에서 장바구니 데이터 로드

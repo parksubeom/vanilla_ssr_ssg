@@ -1,5 +1,10 @@
 import { http, HttpResponse } from "msw";
-import items from "./items.json";
+// [수정 1] JSON 파일을 읽기 위해 Node.js 내장 모듈 사용
+import { createRequire } from "module";
+
+// [수정 2] ESM 환경(Node.js)에서 JSON을 import 하기 위한 require 생성
+const require = createRequire(import.meta.url);
+const items = require("./items.json");
 
 const delay = async () => await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -64,54 +69,64 @@ function filterProducts(products, query) {
 
 export const handlers = [
   // 상품 목록 API
-  http.get("/api/products", async ({ request }) => {
-    const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get("page") ?? url.searchParams.get("current")) || 1;
-    const limit = parseInt(url.searchParams.get("limit")) || 20;
-    const search = url.searchParams.get("search") || "";
-    const category1 = url.searchParams.get("category1") || "";
-    const category2 = url.searchParams.get("category2") || "";
-    const sort = url.searchParams.get("sort") || "price_asc";
+  // [수정] 상품 목록 API (디버깅 추가)
+  http.get("*/api/products", async ({ request }) => {
+    try {
+      // 1. 요청이 들어왔는지 확인
+      console.log("[MSW] GET /api/products 요청 수신");
+      
+      const url = new URL(request.url);
+      const page = parseInt(url.searchParams.get("page") ?? url.searchParams.get("current")) || 1;
+      const limit = parseInt(url.searchParams.get("limit")) || 20;
+      const search = url.searchParams.get("search") || "";
+      const category1 = url.searchParams.get("category1") || "";
+      const category2 = url.searchParams.get("category2") || "";
+      const sort = url.searchParams.get("sort") || "price_asc";
 
-    // 필터링된 상품들
-    const filteredProducts = filterProducts(items, {
-      search,
-      category1,
-      category2,
-      sort,
-    });
+      // 2. items 데이터 확인
+      if (!Array.isArray(items)) {
+        console.error("[MSW Error] items가 배열이 아닙니다:", items);
+        throw new Error("items data is not an array");
+      }
 
-    // 페이지네이션
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
-
-    // 응답 데이터
-    const response = {
-      products: paginatedProducts,
-      pagination: {
-        page,
-        limit,
-        total: filteredProducts.length,
-        totalPages: Math.ceil(filteredProducts.length / limit),
-        hasNext: endIndex < filteredProducts.length,
-        hasPrev: page > 1,
-      },
-      filters: {
+      // 필터링
+      const filteredProducts = filterProducts(items, {
         search,
         category1,
         category2,
         sort,
-      },
-    };
+      });
 
-    await delay();
+      // 페이지네이션
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
 
-    return HttpResponse.json(response);
+      const response = {
+        products: paginatedProducts,
+        pagination: {
+          page,
+          limit,
+          total: filteredProducts.length,
+          totalPages: Math.ceil(filteredProducts.length / limit),
+          hasNext: endIndex < filteredProducts.length,
+          hasPrev: page > 1,
+        },
+        filters: { search, category1, category2, sort },
+      };
+
+      await delay();
+      return HttpResponse.json(response);
+
+    } catch (error) {
+      // [핵심] 에러 내용을 서버 터미널에 출력
+      console.error("[MSW Handler Error] 핸들러 내부 에러 발생:", error);
+      return HttpResponse.json({ error: error.message }, { status: 500 });
+    }
   }),
 
   // 상품 상세 API
-  http.get("/api/products/:id", ({ params }) => {
+  http.get("*/api/products/:id", ({ params }) => {
     const { id } = params;
     const product = items.find((item) => item.productId === id);
 
@@ -133,7 +148,7 @@ export const handlers = [
   }),
 
   // 카테고리 목록 API
-  http.get("/api/categories", async () => {
+  http.get("*/api/categories", async () => {
     const categories = getUniqueCategories();
     await delay();
     return HttpResponse.json(categories);

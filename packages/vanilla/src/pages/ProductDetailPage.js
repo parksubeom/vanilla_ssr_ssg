@@ -1,6 +1,6 @@
-import { productStore } from "../stores";
-import { loadProductDetailForPage } from "../services";
-import { router, withLifecycle } from "../router";
+import { productStore } from "../stores/index.js";
+import { loadProductDetailForPage } from "../services/index.js";
+import { router, withLifecycle } from "../router/index.js"; 
 import { PageWrapper } from "./PageWrapper.js";
 
 const loadingContent = `
@@ -57,7 +57,6 @@ function ProductDetail({ product, relatedProducts = [] }) {
   if (category2) breadcrumbItems.push({ name: category2, category: "category2", value: category2 });
 
   return `
-    <!-- 브레드크럼 -->
     ${
       breadcrumbItems.length > 0
         ? `
@@ -82,9 +81,7 @@ function ProductDetail({ product, relatedProducts = [] }) {
         : ""
     }
 
-    <!-- 상품 상세 정보 -->
     <div class="bg-white rounded-lg shadow-sm mb-6">
-      <!-- 상품 이미지 -->
       <div class="p-4">
         <div class="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4">
           <img src="${image}" 
@@ -92,12 +89,10 @@ function ProductDetail({ product, relatedProducts = [] }) {
                class="w-full h-full object-cover product-detail-image">
         </div>
         
-        <!-- 상품 정보 -->
         <div>
           <p class="text-sm text-gray-600 mb-1">${brand}</p>
           <h1 class="text-xl font-bold text-gray-900 mb-3">${title}</h1>
           
-          <!-- 평점 및 리뷰 -->
           ${
             rating > 0
               ? `
@@ -121,17 +116,14 @@ function ProductDetail({ product, relatedProducts = [] }) {
               : ""
           }
           
-          <!-- 가격 -->
           <div class="mb-4">
             <span class="text-2xl font-bold text-blue-600">${price.toLocaleString()}원</span>
           </div>
           
-          <!-- 재고 -->
           <div class="text-sm text-gray-600 mb-4">
             재고 ${stock.toLocaleString()}개
           </div>
           
-          <!-- 설명 -->
           ${
             description
               ? `
@@ -144,7 +136,6 @@ function ProductDetail({ product, relatedProducts = [] }) {
         </div>
       </div>
       
-      <!-- 수량 선택 및 액션 -->
       <div class="border-t border-gray-200 p-4">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm font-medium text-gray-900">수량</span>
@@ -175,7 +166,6 @@ function ProductDetail({ product, relatedProducts = [] }) {
           </div>
         </div>
         
-        <!-- 액션 버튼 -->
         <button id="add-to-cart-btn" 
                 data-product-id="${productId}"
                 class="w-full bg-blue-600 text-white py-3 px-4 rounded-md 
@@ -185,15 +175,13 @@ function ProductDetail({ product, relatedProducts = [] }) {
       </div>
     </div>
 
-    <!-- 상품 목록으로 이동 -->
     <div class="mb-6">
       <button class="block w-full text-center bg-gray-100 text-gray-700 py-3 px-4 rounded-md 
-                hover:bg-gray-200 transition-colors go-to-product-list">
+               hover:bg-gray-200 transition-colors go-to-product-list">
         상품 목록으로 돌아가기
       </button>
     </div>
 
-    <!-- 관련 상품 -->
     ${
       relatedProducts.length > 0
         ? `
@@ -232,14 +220,19 @@ function ProductDetail({ product, relatedProducts = [] }) {
 }
 
 /**
- * 상품 상세 페이지 컴포넌트
+ * [ISOMORPHIC] 상품 상세 페이지 컴포넌트
+ * SSR 지원을 위해 변수로 선언하고 하단에서 export 합니다.
  */
-export const ProductDetailPage = withLifecycle(
+const ProductDetailPageComponent = withLifecycle(
   {
     onMount: () => {
+      // CSR 동작: 마운트 시 데이터 로드
       loadProductDetailForPage(router.params.id);
     },
-    watches: [() => [router.params.id], () => loadProductDetailForPage(router.params.id)],
+    watches: [
+      () => [router.params.id],
+      () => loadProductDetailForPage(router.params.id) // CSR 동작: ID 변경 감지
+    ],
   },
   () => {
     const { currentProduct: product, relatedProducts = [], error, loading } = productStore.getState();
@@ -264,3 +257,17 @@ export const ProductDetailPage = withLifecycle(
     });
   },
 );
+
+/**
+ * [SSR 필수] 서버 사이드 데이터 프리패칭
+ * 서버에서 렌더링하기 전에 이 함수를 호출하여 데이터를 스토어에 미리 채웁니다.
+ */
+ProductDetailPageComponent.fetchData = async ({ store, params }) => {
+  const { id } = params;
+  if (id) {
+    // SSR 호출: 특정 스토어 인스턴스에 데이터를 주입합니다.
+    await loadProductDetailForPage(id, store);
+  }
+};
+
+export const ProductDetailPage = ProductDetailPageComponent;

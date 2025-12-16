@@ -1,3 +1,3 @@
-export * from "./eventUtils";
-export * from "./domUtils";
-export * from "./withBatch";
+export * from "./eventUtils.js";
+export * from "./domUtils.js";
+export * from "./withBatch.js";

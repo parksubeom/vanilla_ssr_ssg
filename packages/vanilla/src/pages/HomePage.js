@@ -1,10 +1,10 @@
-import { ProductList, SearchBar } from "../components";
-import { productStore } from "../stores";
-import { router, withLifecycle } from "../router";
-import { loadProducts, loadProductsAndCategories } from "../services";
+import { ProductList, SearchBar } from "../components/index.js";
+import { productStore } from "../stores/index.js";
+import { router, withLifecycle } from "../router/index.js"; // 경로 명시
+import { loadProducts, loadProductsAndCategories } from "../services/index.js";
 import { PageWrapper } from "./PageWrapper.js";
 
-export const HomePage = withLifecycle(
+const HomePageComponent = withLifecycle(
   {
     onMount: () => {
       loadProductsAndCategories();
@@ -31,10 +31,8 @@ export const HomePage = withLifecycle(
         </h1>
       `.trim(),
       children: `
-        <!-- 검색 및 필터 -->
         ${SearchBar({ searchQuery, limit, sort, category, categories })}
         
-        <!-- 상품 목록 -->
         <div class="mb-6">
           ${ProductList({
             products,
@@ -48,3 +46,13 @@ export const HomePage = withLifecycle(
     });
   },
 );
+
+/**
+ * [SSR 필수] 서버 사이드 데이터 프리패칭
+ */
+HomePageComponent.fetchData = async ({ store, query }) => {
+  // 서비스를 통해 데이터를 가져오고 스토어에 주입합니다.
+  await loadProductsAndCategories(query, store);
+};
+
+export const HomePage = HomePageComponent;

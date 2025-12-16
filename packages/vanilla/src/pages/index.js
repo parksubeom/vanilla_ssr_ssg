@@ -1,3 +1,3 @@
-export * from "./HomePage";
-export * from "./ProductDetailPage";
-export * from "./NotFoundPage";
+export * from "./HomePage.js";
+export * from "./ProductDetailPage.js";
+export * from "./NotFoundPage.js";

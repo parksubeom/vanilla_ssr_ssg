@@ -1,4 +1,4 @@
-import { CartItem } from "./CartItem";
+import { CartItem } from "./CartItem.js";
 
 export function CartModal({ items = [], selectedAll = false, isOpen = false }) {
   if (!isOpen) {

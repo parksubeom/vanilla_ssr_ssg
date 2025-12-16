@@ -1,7 +1,7 @@
-import { cartStore, productStore, uiStore } from "./stores";
-import { router } from "./router";
-import { HomePage, NotFoundPage, ProductDetailPage } from "./pages";
-import { withBatch } from "./utils";
+import { cartStore, productStore, uiStore } from "./stores/index.js";
+import { router } from "./router/index.js";
+import { HomePage, NotFoundPage, ProductDetailPage } from "./pages/index.js";
+import { withBatch } from "./utils/index.js";
 
 // 홈 페이지 (상품 목록)
 router.addRoute("/", HomePage);

@@ -1,57 +1,32 @@
-import { createStore } from "../lib";
-import { CART_ACTIONS } from "./actionTypes";
-import { cartStorage } from "../storage/index.js";
+import { createStore } from "../lib/index.js"; // .js 확인
+import { CART_ACTIONS } from "./actionTypes.js";
 
 /**
  * 장바구니 스토어 초기 상태
- *
- * @typedef {Object} CartItem
- * @property {string} id - 상품 ID
- * @property {string} title - 상품 제목
- * @property {string} image - 상품 이미지 URL
- * @property {number} price - 상품 가격
- * @property {number} quantity - 상품 수량
- * @property {boolean} selected - 선택 여부
- *
- *
- * @typedef {Object} CartState
- * @property {CartItem[]} items - 장바구니 아이템 목록
- * @property {boolean} selectedAll - 전체 선택 여부
- *
- * @typedef {Object} CartAction
- * @property {string} type - 액션 타입
- * @property {Object} payload - 액션에 필요한 데이터
- */
-
-/**
- * @type {CartState}
  */
 const initialState = {
   items: [],
   selectedAll: false,
 };
 
-/**
- * 장바구니 아이템 찾기
- */
 const findCartItem = (items, productId) => {
   return items.find((item) => item.id === productId);
 };
 
 /**
- * 장바구니 스토어 리듀서
- * @param {CartState} state - 현재 상태
- * @param {CartAction} action - 액션 객체
+ * [수정 포인트] export를 꼭 붙여야 서버가 가져갈 수 있습니다!
+ * 또한, state 기본값(= initialState)을 할당해야 합니다.
  */
-const cartReducer = (_, action) => {
-  const state = cartStorage.get() ?? initialState;
+export const cartReducer = (state = initialState, action) => {
+  // [중요] 서버 호환성을 위해 스토리지 직접 접근 코드(cartStorage.get)는 제거하거나
+  // 액션(LOAD_FROM_STORAGE)으로 처리해야 합니다.
+  
   switch (action.type) {
     case CART_ACTIONS.ADD_ITEM: {
       const { product, quantity = 1 } = action.payload;
       const existingItem = findCartItem(state.items, product.productId);
 
       if (existingItem) {
-        // 기존 아이템 수량 증가
         return {
           ...state,
           items: state.items.map((item) =>
@@ -59,7 +34,6 @@ const cartReducer = (_, action) => {
           ),
         };
       } else {
-        // 새 아이템 추가
         const newItem = {
           id: product.productId,
           title: product.title,
@@ -95,13 +69,12 @@ const cartReducer = (_, action) => {
         items: [],
         selectedAll: false,
       };
+
     case CART_ACTIONS.TOGGLE_SELECT: {
       const productId = action.payload;
       const updatedItems = state.items.map((item) =>
         item.id === productId ? { ...item, selected: !item.selected } : item,
       );
-
-      // 전체 선택 상태 업데이트
       const allSelected = updatedItems.length > 0 && updatedItems.every((item) => item.selected);
 
       return {
@@ -116,7 +89,6 @@ const cartReducer = (_, action) => {
         ...item,
         selected: true,
       }));
-
       return {
         ...state,
         items: updatedItems,
@@ -129,7 +101,6 @@ const cartReducer = (_, action) => {
         ...item,
         selected: false,
       }));
-
       return {
         ...state,
         items: updatedItems,
@@ -154,7 +125,5 @@ const cartReducer = (_, action) => {
       return state;
   }
 };
-/**
- * 장바구니 스토어 생성
- */
+
 export const cartStore = createStore(cartReducer, initialState);

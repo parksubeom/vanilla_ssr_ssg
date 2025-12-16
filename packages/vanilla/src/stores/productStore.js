@@ -1,5 +1,5 @@
-import { createStore } from "../lib";
-import { PRODUCT_ACTIONS } from "./actionTypes";
+import { createStore } from "../lib/index.js";
+import { PRODUCT_ACTIONS } from "./actionTypes.js";
 
 /**
  * 상품 스토어 초기 상태
@@ -25,7 +25,7 @@ export const initialProductState = {
 /**
  * 상품 스토어 리듀서
  */
-const productReducer = (state, action) => {
+export const productReducer = (state, action) => {
   switch (action.type) {
     case PRODUCT_ACTIONS.SET_STATUS:
       return {

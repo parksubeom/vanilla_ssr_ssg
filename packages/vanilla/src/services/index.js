@@ -1,2 +1,2 @@
-export * from "./productService";
-export * from "./cartService";
+export * from "./productService.js";
+export * from "./cartService.js";

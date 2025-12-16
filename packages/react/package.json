@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5175",
-    "dev:ssr": "PORT=5176 node server.js",
+    "dev:ssr": "PORT=5176 nodemon server.js",
     "build:client": "rm -rf ./dist/react && vite build --outDir ./dist/react && cp ./dist/react/index.html ./dist/react/404.html",
     "build:client-for-ssg": "rm -rf ../../dist/react && vite build --outDir ../../dist/react",
     "build:server": "vite build --outDir ./dist/react-ssr --ssr src/main-server.tsx",
@@ -17,7 +17,7 @@
     "build": "npm run build:client && npm run build:server && npm run build:ssg",
     "preview:csr": "vite preview --outDir ./dist/react --port 4175",
     "preview:csr-with-build": "pnpm run build:client && pnpm run preview:csr",
-    "preview:ssr": "PORT=4176 NODE_ENV=production node server.js",
+    "preview:ssr": "PORT=4176 NODE_ENV=production nodemon server.js",
     "preview:ssr-with-build": "pnpm run build:without-ssg && pnpm run preview:ssr",
     "preview:ssg": "NODE_ENV=production vite preview --outDir ../../dist/react --port 4179",
     "preview:ssg-with-build": "pnpm run build:ssg && pnpm run preview:ssg",

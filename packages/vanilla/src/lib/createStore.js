@@ -1,4 +1,4 @@
-import { createObserver } from "./createObserver";
+import { createObserver } from "./createObserver.js";
 
 /**
  * Redux-style Store 생성 함수

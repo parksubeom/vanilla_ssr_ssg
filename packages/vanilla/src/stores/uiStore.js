@@ -1,5 +1,5 @@
-import { createStore } from "../lib";
-import { UI_ACTIONS } from "./actionTypes";
+import { createStore } from "../lib/index.js";
+import { UI_ACTIONS } from "./actionTypes.js";
 
 /**
  * UI 스토어 초기 상태
