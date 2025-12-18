@@ -6,49 +6,53 @@ import { BASE_URL } from "./constants.js";
 import { router } from "./router/router.js";
 import { registerRoutes } from "./router/routes.js";
 
-// [제거] initHydration 함수는 더 이상 필요 없습니다. (스토어 파일이 스스로 초기화함)
-
-function main() {
-  // [제거] initHydration() 호출을 제거합니다.
-
-  // 라우트 등록 실행
+async function main() {
+  // 1. 라우트 등록
   registerRoutes(router);
 
+  // 2. 이벤트 등록 및 초기화
   registerAllEvents();
   registerGlobalEvents();
   loadCartFromStorage();
+
+  // 3. 렌더링 시스템 초기화 (SSR 하이드레이션 포함)
+  // Store가 __INITIAL_STATE__로 초기화되어 있으므로, 불필요한 fetch를 방지할 수 있습니다.
   initRender();
+
+  // 4. 라우팅 시작 (초기 URL 매칭)
   router.start();
 }
 
 /**
- * [수정 포인트]
- * import.meta.env 가 없을 수도 있으므로 '?.MODE' (옵셔널 체이닝) 사용!
- * (Node.js 서버에서 직접 띄울 땐 env가 undefined이므로 에러 방지)
+ * MSW를 비동기로 준비하고 앱을 실행하는 부트스트랩 함수
  */
-if (typeof window !== 'undefined' && import.meta.env?.MODE !== "test") {
-  import("./mocks/browser.js")
-    .then(({ worker }) => {
-      worker
-        .start({
-          serviceWorker: {
-            url: `${BASE_URL}mockServiceWorker.js`,
-          },
-          onUnhandledRequest: "bypass",
-        })
-        .then(() => {
-          main();
-        })
-        .catch((err) => {
-          console.warn("MSW Worker start failed, but starting app without MSW:", err);
-          main();
-        });
-    })
-    .catch((err) => {
-      // [수정] 모듈 로드 실패 시, 에러를 기록하고 MSW 없이 애플리케이션 시작
-      console.warn("Mock Service Worker import failed (TypeError in SSR env?):", err);
-      main();
-    });
-} else {
-  main();
+async function bootstrap() {
+  // 브라우저 환경이고, 테스트 모드가 아닐 때만 MSW 실행 시도
+  const shouldMock = typeof window !== 'undefined' && import.meta.env?.MODE !== "test";
+
+  if (shouldMock) {
+    try {
+      // [중요] import 구문을 try-catch로 감싸서 모듈 로드 실패(SSR Dev 환경 등) 시 앱이 멈추지 않도록 함
+      const { worker } = await import("./mocks/browser.js");
+
+      await worker.start({
+        serviceWorker: {
+          url: `${BASE_URL}mockServiceWorker.js`,
+        },
+        // MSW가 처리하지 않는 요청(정적 파일 등)은 경고 없이 통과
+        onUnhandledRequest: "bypass",
+      });
+
+      console.log("[MSW] Mock Service Worker started successfully");
+    } catch (error) {
+      // SSR 개발 환경(Express 정적 서빙)에서는 'msw/browser' 모듈 경로 해석이 안 되어 실패할 수 있음.
+      // 이 경우, 경고만 남기고 앱을 계속 실행하여 '화면은 나오게' 처리합니다.
+      console.warn("[MSW] Failed to start MSW (running without mocks):", error);
+    }
+  }
+
+  // MSW 성공 여부와 관계없이 메인 로직 실행
+  await main();
 }
+
+bootstrap();

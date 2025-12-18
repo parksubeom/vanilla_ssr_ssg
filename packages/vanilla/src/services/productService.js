@@ -1,10 +1,9 @@
 import { getCategories, getProduct, getProducts } from "../api/productApi.js";
 import { initialProductState, productStore, PRODUCT_ACTIONS } from "../stores/index.js";
-import { router } from "../router/router.js"; // 경로 정확히 명시
+import { router } from "../router/router.js";
 
 /**
  * [ISOMORPHIC] 상품 목록 및 카테고리 로드
- * SSR 호환을 위해 serverQuery, serverStore를 주입받음
  */
 export const loadProductsAndCategories = async (serverQuery = null, serverStore = null) => {
   const targetStore = serverStore || productStore;
@@ -13,6 +12,7 @@ export const loadProductsAndCategories = async (serverQuery = null, serverStore 
   if (serverQuery) {
     targetQuery = { ...serverQuery, current: undefined };
   } else {
+    // [수정] router.query 초기화 시 기존 파라미터 보존 여부 확인 필요하나, 초기 로드이므로 리셋
     router.query = { current: undefined };
     targetQuery = router.query;
   }
@@ -51,6 +51,7 @@ export const loadProducts = async (resetList = true) => {
       payload: { loading: true, status: "pending", error: null },
     });
 
+    // router.query는 checkRoutes()에 의해 URL과 동기화된 상태입니다.
     const {
       products,
       pagination: { total },
@@ -70,6 +71,8 @@ export const loadProducts = async (resetList = true) => {
 
 /**
  * [CSR] 더보기 (무한 스크롤)
+ * - 이 함수는 URL을 변경하지 않고 내부 상태만 변경하여 다음 페이지를 가져옵니다.
+ * - HomePage의 watcher는 'current'를 감시하지 않으므로 전체 리로드(loading:true)가 발생하지 않습니다.
  */
 export const loadMoreProducts = async () => {
   const state = productStore.getState();
@@ -77,38 +80,61 @@ export const loadMoreProducts = async () => {
 
   if (!hasMore || state.loading) return;
 
-  router.query = { current: Number(router.query.current ?? 1) + 1 };
+  // 현재 쿼리에 페이지 번호만 증가시킴 (URL 업데이트 안 함 = 히스토리 오염 방지)
+  router.query = { ...router.query, current: Number(router.query.current ?? 1) + 1 };
   await loadProducts(false);
 };
 
-// ▼▼▼▼▼▼ [여기서부터 누락되었던 CSR 헬퍼 함수들 복구] ▼▼▼▼▼▼
+// ▼▼▼▼▼▼ [핵심 수정: URL 업데이트 헬퍼 함수] ▼▼▼▼▼▼
+
+/**
+ * 쿼리 파라미터를 업데이트하고 URL을 변경하는 내부 유틸리티
+ */
+const updateQuery = (newParams) => {
+  // 1. 기존 쿼리 파라미터 유지
+  const currentQuery = router.query || {};
+  const mergedQuery = { ...currentQuery, ...newParams };
+
+  // 2. URLSearchParams 생성 (undefined, null, 빈 문자열 제거)
+  const searchParams = new URLSearchParams();
+  Object.entries(mergedQuery).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value);
+    }
+  });
+
+  // 3. 라우터 push -> checkRoutes -> render -> HomePage watcher 감지 -> loadProducts 실행
+  router.push(`/?${searchParams.toString()}`);
+};
 
 /**
  * [CSR] 검색어 설정
  */
 export const searchProducts = (search) => {
-  router.query = { search, current: 1 };
+  updateQuery({ search, current: 1 });
 };
 
 /**
  * [CSR] 카테고리 설정
  */
 export const setCategory = (categoryData) => {
-  router.query = { ...categoryData, current: 1 };
+  // categoryData: { category1: '...', category2: '...' }
+  // 카테고리 변경 시 페이지 1로 초기화
+  updateQuery({ ...categoryData, current: 1 });
 };
 
 /**
  * [CSR] 정렬 설정
  */
 export const setSort = (sort) => {
-  router.query = { sort, current: 1 };
+  updateQuery({ sort, current: 1 });
 };
 
 /**
  * [CSR] 페이지당 개수 설정
  */
 export const setLimit = (limit) => {
-  router.query = { limit, current: 1 };
+  updateQuery({ limit, current: 1 });
 };
 
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
@@ -121,7 +147,7 @@ export const loadProductDetailForPage = async (productId, serverStore = null) =>
 
   try {
     const currentProduct = targetStore.getState().currentProduct;
-    // CSR 최적화
+    // CSR 최적화: 이미 불러온 상품이면 다시 부르지 않음 (관련 상품만 체크)
     if (!serverStore && productId === currentProduct?.productId) {
       if (currentProduct.category2) {
         await loadRelatedProducts(currentProduct.category2, productId, targetStore);

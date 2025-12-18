@@ -1,5 +1,7 @@
+// packages/vanilla/src/events.js
+
 import { addEvent, isNearBottom } from "./utils/index.js";
-import { router } from "./router/index.js";
+import { router } from "./router/index.js"; // [중요] 설정된 라우터 인스턴스 사용
 import {
   addToCart,
   clearCart,
@@ -152,7 +154,10 @@ export function registerProductDetailEvents() {
 
   // 상품 상세 페이지에서 관련 상품 클릭
   addEvent("click", ".related-product-card", async (e) => {
-    const productId = e.target.closest("[data-product-id]").dataset.productId;
+    const target = e.target.closest("[data-product-id]");
+    if (!target) return;
+
+    const productId = target.dataset.productId;
     if (!productId) return;
 
     // 상품 상세 페이지로 이동
@@ -166,7 +171,9 @@ export function registerProductDetailEvents() {
     try {
       // 카테고리 설정
       const categories = {};
-      const elements = [...e.target.parentNode.querySelectorAll(".breadcrumb-link")].slice(0, 2);
+      const elements = [
+        ...e.target.parentNode.querySelectorAll(".breadcrumb-link"),
+      ].slice(0, 2);
       for (const [index, element] of Object.entries(elements)) {
         const key = `category${parseInt(index) + 1}`;
         categories[key] = element.dataset[key];
@@ -236,7 +243,9 @@ export function registerCartEvents() {
 
     // 상품 정보 찾기
     const productState = productStore.getState();
-    const product = productState.products.find((p) => p.productId === productId);
+    const product = productState.products.find(
+      (p) => p.productId === productId
+    );
 
     if (product) {
       addToCart(product, 1);
@@ -372,7 +381,9 @@ export function registerScrollEvents() {
   // 무한 스크롤 (직접 등록) - 홈 페이지에서만 동작
   window.addEventListener("scroll", async () => {
     // 현재 라우트가 홈이 아니면 무한 스크롤 비활성화
-    if (router.route.path !== "/") {
+    // [주의] router.route.path 등의 접근이 가능한지 확인 필요
+    // 일반적인 SPA에서는 pathname으로 확인
+    if (window.location.pathname !== "/") {
       return;
     }
 
@@ -404,12 +415,25 @@ export function registerToastEvents() {
   });
 }
 
+/**
+ * [수정됨] 링크 클릭 이벤트 등록
+ * - e.target이 아닌 closest를 사용하여 a 태그를 안전하게 찾습니다.
+ * - 올바른 router 인스턴스를 통해 페이지를 이동시킵니다.
+ */
 export function registerLinkEvents() {
-  // 링크 클릭 시 라우터 네비게이션
   addEvent("click", "[data-link]", (e) => {
+    // 1. 기본 브라우저 이동 막기
     e.preventDefault();
-    const url = e.target.getAttribute("href");
+
+    // 2. a 태그 찾기 (이미지나 내부 요소를 클릭했을 경우 대비)
+    const anchor = e.target.closest("[data-link]");
+    if (!anchor) return;
+
+    // 3. href 가져오기
+    const url = anchor.getAttribute("href");
+
     if (url) {
+      // 4. 라우터로 이동 (화면 갱신 트리거)
       router.push(url);
     }
   });

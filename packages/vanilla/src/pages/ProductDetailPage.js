@@ -34,7 +34,10 @@ const ErrorContent = ({ error }) => `
   </div>
 `;
 
- function ProductDetail({ product, relatedProducts = [] }) {
+function ProductDetail({ product, relatedProducts = [] }) {
+  // [방어 코드] product가 없으면 렌더링하지 않음 (상위에서 막겠지만 혹시 모를 안전장치)
+  if (!product) return "";
+
   const {
     productId,
     title,
@@ -226,12 +229,17 @@ const ErrorContent = ({ error }) => `
 const ProductDetailPageComponent = withLifecycle(
   {
     onMount: () => {
-      // CSR 동작: 마운트 시 데이터 로드
+      // [수정] watches에서 ID 변경을 감지하여 데이터를 로드하므로,
+      // onMount에서의 중복 호출을 제거하여 Double Fetch 방지
+      // 만약 watches가 초기화 시 실행되지 않는다면 아래 주석을 해제해야 함
       loadProductDetailForPage(router.params.id);
     },
     watches: [
       () => [router.params.id],
-      () => loadProductDetailForPage(router.params.id), // CSR 동작: ID 변경 감지
+      // [수정] ID가 변경될 때마다 데이터 로드 (첫 진입 시에도 동작 예상)
+      (newId) => {
+          if(newId) loadProductDetailForPage(newId);
+      }
     ],
   },
   () => {
@@ -249,9 +257,11 @@ const ProductDetailPageComponent = withLifecycle(
           <h1 class="text-lg font-bold text-gray-900">상품 상세</h1>
         </div>
       `.trim(),
-      children: loading
+      // [핵심 수정] loading이거나 product가 null이면 무조건 로딩 화면 노출
+      // 이렇게 해야 데이터가 오기 전 'null'인 product를 그리려다 에러가 나는 것을 방지함
+      children: (loading || !product)
         ? loadingContent
-        : error && !product
+        : error
           ? ErrorContent({ error })
           : ProductDetail({ product, relatedProducts }),
     });
@@ -260,12 +270,10 @@ const ProductDetailPageComponent = withLifecycle(
 
 /**
  * [SSR 필수] 서버 사이드 데이터 프리패칭
- * 서버에서 렌더링하기 전에 이 함수를 호출하여 데이터를 스토어에 미리 채웁니다.
  */
 ProductDetailPageComponent.fetchData = async ({ store, params }) => {
   const { id } = params;
   if (id) {
-    // SSR 호출: 특정 스토어 인스턴스에 데이터를 주입합니다.
     await loadProductDetailForPage(id, store);
   }
 };
