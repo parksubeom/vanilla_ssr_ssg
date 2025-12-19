@@ -56,7 +56,6 @@ async function prefetchData(route: RouterType["route"], params: StringRecord, qu
     return data;
   }
 }
-
 export const render = async (url: string, query: Record<string, string>) => {
   const router = createRouter({
     "/": HomePage,
